@@ -51,7 +51,7 @@ def main():
         </style>
     </head>
     <body>
-        <h1>Created by Mishal</h1>
+        <h1>web</h1>
         <div class="commands-container">
             <h2>GPT4FREE Chatbot Commands</h2>
             <p class="command">!pfp [image_url] - Change the bot's profile picture</p>
@@ -61,7 +61,7 @@ def main():
             <p class="command">!toggleactive - Makes the bot active in the channel</p>
             <p class="command">!toggledm - Turn on or off DMs/p>
             <div style="text-align: center; margin-top: 20px;">
-                <a href="https://github.com/mishalhossin/Coding-Chatbot-Gpt4Free" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #fabb34; color: #fff; border-radius: 50px;">View Source Code on GitHub</a>
+                <a href="https://github.com/saaandrew/LaylaAI-DiscordBot-v1.2" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #fabb34; color: #fff; border-radius: 50px;">View Source Code on GitHub</a>
             </div>
         </div>
     </body>
