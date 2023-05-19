@@ -36,7 +36,7 @@ internet_access = True
 @bot.event
 async def on_ready():
     await bot.tree.sync()
-    await bot.change_presence(activity=discord.Game(name="Coded by Mishal#1916"))
+    await bot.change_presence(activity=discord.Game(name="Genshin Impact"))
     print(f"{bot.user} aka {bot.user.name} has connected to Discord!")
 
     invite_link = discord.utils.oauth_url(
@@ -299,7 +299,7 @@ async def help(ctx):
         command_description = command.description or "No description available"
         embed.add_field(name=command.name, value=command_description, inline=False)
     
-    embed.set_footer(text="Created by Mishal#1916")
+    embed.set_footer(text="aaaaaaaaaaaaaaandrew")
 
     await ctx.send(embed=embed)
             
