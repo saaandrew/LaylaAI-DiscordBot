@@ -1,4 +1,5 @@
 aiohttp
+aiofiles
 asyncio
 discord.py
 pynacl
@@ -14,3 +15,4 @@ pydantic
 pycryptodome
 PyYAML
 youtube-transcript-api
+langdetect
