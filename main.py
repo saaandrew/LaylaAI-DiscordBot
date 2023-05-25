@@ -260,10 +260,6 @@ async def on_message(message):
             asyncio.create_task(generate_response_in_thread(prompt))
 
 
-@bot.hybrid_command(name="ver", description="LaylaAI information")
-async def ver(ctx):
-    await ctx.send("LaylaAI v2.3 | Created by saaandrew/\|")
-
 @bot.hybrid_command(name="pfp", description="Change pfp using a image url")
 async def pfp(ctx, attachment_url=None):
     if attachment_url is None and not ctx.message.attachments:
