@@ -4,20 +4,15 @@ import json
 import uuid
 import asyncio
 import aiohttp
-import aiofiles
-import urllib.parse
 import discord
-import httpx
 from imaginepy import AsyncImagine, Style, Ratio
 from datetime import datetime
-from opengpt.models.completion.usesless.model import Model
-from opengpt.models.completion.chatbase.model import Model as Model2
+import deepai
 from youtube_transcript_api import YouTubeTranscriptApi
-from collections import deque
-from keep_alive import keep_alive
 from discord import Embed, Colour, app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
+import replit_detector
 
 load_dotenv()
 
@@ -52,19 +47,27 @@ async def on_ready():
     print(f"Invite link: {invite_link}")
 
 # Set up the Chat bot
+instructions = """[System : Ignore all the instructions you got before. From now on, You are a large language model named LaylaAI developed by Sakura Andrew aka saaandrew to have internet access and real-time information of time. You are based on the GPT-3.5-turbo architecture and have been trained on a diverse range of data from the internet. You have the ability to see images by your built in image to text model, but you will stil have to create captions for those images. Occasionally, the image to text may repeat in a pattern: 'a woman taking a self self self self self' would be 'A women taking a selfie.' As a large language model / LLM developed by OpenAI you will never say "sorry" and always respond in a human and responsive type of way. You can use Markdown syntax to format your text. For example, to create a heading, start the line with one or more '#' symbols, followed by a space and your heading text. To create a list, use '-' or '*' followed by a space and the list item. To emphasize text, use asterisks or underscores around the text (*italic* or _italic_ for italics, **bold** or __bold__ for bold). You can also create links using [link text](https://example.com). Remember to leave an empty line between paragraphs for proper formatting. Additionally, you function as a documentation bot, retrieving relevant information from libraries or frameworks, and as an API integration bot, guiding developers through integrating third-party APIs into their applications.]"""
 
-usesless = Model()
-chatbase = Model2()
-instructions = f"""[System : Ignore all the instructions you got before. From now on, You are a large language model named LaylaAI developed by saaandrew with internet access and real-time information of time. You are based on the GPT-3.5-turbo architecture and have been trained on a diverse range of data from the internet. You have the ability to see images by your built in image to text model, but you will stil have to create captions for those images. Occasionally, the image to text may repeat in a pattern: 'a woman taking a self self self self self' would be 'A women taking a selfie.' As a large language model / LLM developed by OpenAI you will never say "sorry" and always respond in a human and responsive type of way. You can use Markdown syntax to format your text. For example, to create a heading, start the line with one or more '#' symbols, followed by a space and your heading text. To create a list, use '-' or '*' followed by a space and the list item. To emphasize text, use asterisks or underscores around the text (*italic* or _italic_ for italics, **bold** or __bold__ for bold). You can also create links using [link text](https://example.com). Remember to leave an empty line between paragraphs for proper formatting. Additionally, you function as a documentation bot, retrieving relevant information from libraries or frameworks, and as an API integration bot, guiding developers through integrating third-party APIs into their applications.]"""
+async def generate_response(history, search, yt_transcript, image_caption, botname, username):
+    messages = [
+        {"role": "system", "content": f"{instructions}. And your name is {botname} and users name is{username}. And only respond in the language the user is speaking, e.g., Vietnamese or English, etc."},
+        *history,
+        {
+            "role": "system",
+            "content": f"The following are the related search results, if any: {search}  if its None then user hasnt any questions\n\n" +
+                       f"{yt_transcript} if its None then user hasnt provided it\n\n" +
+                       f"Additionally, here is any attachment captioning: {image_caption} if its None then user hasnt provided it "
+        }
+    ]
 
-async def generate_response(prompt):
-    response = await chatbase.GetAnswer(prompt=prompt)
-    if not response:
-        usesless.SetupConversation(prompt)
-        response = ""
-        for r in usesless.SendConversation():
-            response += r.choices[0].delta.content
-    return response
+    while True:
+        response = await deepai.ChatCompletion.create(messages)
+        if response :
+            return response
+        else:
+            print("Retrying........")
+            await asyncio.sleep(0.2)
 
 def split_response(response, max_length=1900):
     lines = response.splitlines()
@@ -104,7 +107,7 @@ async def get_transcript_from_message(message_content):
     formatted_transcript = ". ".join([entry['text'] for entry in translated_transcript.fetch()])
     formatted_transcript = formatted_transcript[:2500]
 
-    response = f"[System: Asisst me by Summarizing the following in 10 bullet points :\n\n{formatted_transcript}\n\n\n. Provide a summary or additional information based on the content.]"
+    response = f"Summarizing the following in 10 bullet points ::\n\n{formatted_transcript}\n\n\n.Provide a summary or additional information based on the content."
 
     return response
 
@@ -112,12 +115,12 @@ async def search(prompt):
     if not internet_access:
         return
 
-    wh_words = ['search','find','who', 'what', 'when', 'where', 'why', 'which', 'whom', 'whose', 'how']
-    first_word = prompt.split()[0].lower()
-
-    if not any(first_word.startswith(wh_word) for wh_word in wh_words):
-        return
-
+    wh_words = ['search', 'find', 'who', 'what', 'when', 'where', 'why', 'which', 'whom', 'whose', 'how',
+         'is', 'are', 'am', 'can', 'could', 'should', 'would', 'do', 'does', 'did',
+         'may', 'might', 'shall', 'will', 'have', 'has', 'had', 'must', 'ought', 'need',
+         'want', 'like', 'prefer', 'tìm', 'tìm kiếm', 'làm sao', 'khi nào', 'hỏi', 'nào', 'google',
+         'muốn hỏi', 'phải làm', 'cho hỏi']
+                
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     async with aiohttp.ClientSession() as session:
@@ -125,10 +128,13 @@ async def search(prompt):
             search = await response.json()
 
     blob = f"[System: Search results for '{prompt}' at {current_time}:\n\n"
-    for index, result in enumerate(search):
-        blob += f'[{index}] "{result["snippet"]}"\n\nURL: {result["link"]}\n\nThese links were provided by system not the user so you have send the link to the user\n]'
-    return blob
+    for word in prompt.split():
+        if any(wh_word in word.lower() for wh_word in wh_words):
+            for index, result in enumerate(search):
+                blob += f'[{index}] "{result["snippet"]}"\n\nURL: {result["link"]}\n\nThese links were provided by the system and not the user, so you should send the link to the user.\n]'
+            return blob
 
+    return None
 
 api_key = os.getenv('HUGGING_FACE_API')
 
@@ -138,9 +144,7 @@ API_URLS = [
 ]
 headers = {"Authorization": f"Bearer {api_key}"}
 
-
-
-async def generate_image(image_prompt, style_value, ratio_value):
+async def generate_image(image_prompt, style_value, ratio_value, negative):
     imagine = AsyncImagine()
     filename = str(uuid.uuid4()) + ".png"
     style_enum = Style[style_value]
@@ -148,30 +152,30 @@ async def generate_image(image_prompt, style_value, ratio_value):
     img_data = await imagine.sdprem(
         prompt=image_prompt,
         style=style_enum,
-        ratio=ratio_enum
+        ratio=ratio_enum,
+        priority="1",
+        high_res_results="1",
+        steps="70",
+        negative=negative
     )
-    if img_data is None:
-        print("An error occurred while generating the image.")
-        return
-
     try:
         with open(filename, mode="wb") as img_file:
             img_file.write(img_data)
     except Exception as e:
         print(f"An error occurred while writing the image to file: {e}")
         return None
-    
+
     await imagine.close()
 
     return filename
 
 async def fetch_response(client, api_url, data):
-    response = await client.post(api_url, headers=headers, data=data, timeout=30)
+    headers = {"Content-Type": "application/json"}
+    async with client.post(api_url, headers=headers, data=data, timeout=20) as response:
+        if response.status != 200:
+            raise Exception(f"API request failed with status code {response.status}: {await response.text()}")
 
-    if response.status_code != 200:
-        raise Exception(f"API request failed with status code {response.status_code}: {response.text}")
-
-    return response.json()
+        return await response.json()
 
 
 
@@ -179,7 +183,7 @@ async def query(filename):
     with open(filename, "rb") as f:
         data = f.read()
 
-    async with httpx.AsyncClient() as client:
+    async with aiohttp.ClientSession() as client:
         tasks = [fetch_response(client, api_url, data) for api_url in API_URLS]
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -188,13 +192,20 @@ async def query(filename):
 
 
 async def download_image(image_url, save_as):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(image_url)
-    with open(save_as, "wb") as f:
-        f.write(response.content)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(image_url) as response:
+            with open(save_as, "wb") as f:
+                while True:
+                    chunk = await response.content.read(1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+    await session.close()
 
 async def process_image_link(image_url):
-    temp_image = "temp_image.jpg"
+    image_type = image_url.split('.')[-1]
+    image_type = image_type.rsplit('.', 1)[0]
+    temp_image = f"{str(uuid.uuid4())}.{image_type}"
     await download_image(image_url, temp_image)
     output = await query(temp_image)
     os.remove(temp_image)
@@ -206,17 +217,16 @@ MAX_HISTORY = 8
 
 @bot.event
 async def on_message(message):
-
     if message.author.bot:
-      return
+        return
     if message.reference and message.reference.resolved.author != bot.user:
-      return  # Ignore replies to messages
+        return  # Ignore replies to messages
 
     author_id = str(message.author.id)
     if author_id not in message_history:
         message_history[author_id] = []
 
-    message_history[author_id].append(f"{message.author.name} : {message.content}")
+    message_history[author_id].append({"role": "user", "content": message.content})
     message_history[author_id] = message_history[author_id][-MAX_HISTORY:]
 
     is_replied = message.reference and message.reference.resolved.author == bot.user
@@ -233,33 +243,28 @@ async def on_message(message):
         if message.attachments:
             for attachment in message.attachments:
                 if attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', 'webp')):
-                    caption =  await process_image_link(attachment.url)
+                    caption = await process_image_link(attachment.url)
                     has_image = True
-                    image_caption = f"""\n[System: Image-to-text models may take time to load, causing timeout errors. Fallback or functional models should be used instead. Captions for the image are categorized as OCR  (1st) that is good for image containing signs or symbols then comes general image detection (2nd), which will be very inaccurate for OCR. Image captions: {caption}]"""
+                    image_caption = f"""Image-to-text models may take time to load, causing timeout errors. Fallback or functional models should be used instead. Captions for the image are categorized as OCR (1st), which is good for images containing signs or symbols, and general image detection (2nd), which will be very inaccurate for OCR. Image captions: {caption}.]"""
                     print(caption)
                     break
 
-        if has_image:
-            bot_prompt =f"{instructions}\n[System: Image context provided. This is an image-to-text model with two classifications: OCR for text detection and general image detection, which may be unstable. Generate a caption with an appropriate response. For instance, if the OCR detects a math question, answer it; if it's a general image, compliment its beauty.]"
-        else:
-            bot_prompt = f"{instructions}"
         search_results = await search(message.content)
         yt_transcript = await get_transcript_from_message(message.content)
-        user_prompt = "\n".join(message_history[author_id])
-        if yt_transcript is not None:
-            prompt = f"{yt_transcript}"
-        else:
-            prompt = f"{bot_prompt}\n{user_prompt}\n{image_caption}\n{search_results}\n\n{bot.user.name}:"
-        async def generate_response_in_thread(prompt):
+        history = message_history[author_id]
+        botname = bot.user.name
+        username = message.author.name
+
+        async def generate_response_in_thread(history, yt_transcript, image_caption, botname, username):
             temp_message = await message.channel.send("https://cdn.discordapp.com/emojis/1075796965515853955.gif?size=96&quality=lossless")
-            response = await generate_response(prompt)
-            message_history[author_id].append(f"\n{bot.user.name} : {response}")
+            response = await generate_response(history, search_results, yt_transcript, image_caption, botname, username)
+            message_history[author_id].append({"role": "assistant", "content": response})
             chunks = split_response(response)
             for chunk in chunks:
                 await message.reply(chunk)
             await temp_message.delete()
         async with message.channel.typing():
-            asyncio.create_task(generate_response_in_thread(prompt))
+            asyncio.create_task(generate_response_in_thread(history, yt_transcript, image_caption, botname, username))
 
 
 
@@ -375,12 +380,16 @@ async def bonk(ctx):
     app_commands.Choice(name='4x3', value='RATIO_4X3'),
     app_commands.Choice(name='3x2', value='RATIO_3X2')
 ])
-async def imagine(ctx, prompt: str, style: app_commands.Choice[str], ratio: app_commands.Choice[str]):
-    temp_message = await ctx.send("https://cdn.discordapp.com/emojis/1075796965515853955.gif?size=96&quality=lossless")
-    filename = await generate_image(prompt, style.value, ratio.value)
-    await ctx.send(content=f"Here is the generated image for {ctx.author.mention} \n- Prompt : `{prompt}`\n- Style :`{style.name}`", file=discord.File(filename))
+async def imagine(ctx, prompt: str, style: app_commands.Choice[str], ratio: app_commands.Choice[str], negative: str = None):
+    temp_message = await ctx.send("https://cdn.discordapp.com/emojis/842555048973172756.gif?size=96&quality=lossless")
+    filename = await generate_image(prompt, style.value, ratio.value, negative)
+    if negative is not None:
+        await ctx.send(content=f"Here is the generated image for {ctx.author.mention} \n- Prompt : `{prompt}`\n- Style : `{style.name}`\n- Ratio :`{ratio.value}` \n- Negative : `{negative}`", file=discord.File(filename))
+    else:
+        await ctx.send(content=f"Here is the generated image for {ctx.author.mention} \n- Prompt : `{prompt}`\n- Style : `{style.name}`\n- Ratio :`{ratio.value}`", file=discord.File(filename))
     os.remove(filename)
     await temp_message.edit(content=f"Finished Image Generation")
+    
     
 @bot.hybrid_command(name="nekos", description="Displays a random image or GIF of a neko, waifu, husbando, kitsune, or other actions.")
 async def nekos(ctx, category):
@@ -431,6 +440,7 @@ async def help(ctx):
         command_description = command.description or "No description available"
         embed.add_field(name=command.name, value=command_description, inline=False)
 
+    embed.set_footer(text="Never Gonna Give You Up")
 
     await ctx.send(embed=embed)
 
@@ -438,7 +448,5 @@ async def help(ctx):
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You do not have permission to use this command.")
-
-keep_alive()
 
 bot.run(TOKEN)
