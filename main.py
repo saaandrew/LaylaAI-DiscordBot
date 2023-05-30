@@ -7,8 +7,7 @@ import aiohttp
 import discord
 from imaginepy import AsyncImagine, Style, Ratio
 from datetime import datetime
-from model.eva import Model
-from model import deepai
+from model import aiassist
 from youtube_transcript_api import YouTubeTranscriptApi
 from discord import Embed, Colour, app_commands
 from discord.ext import commands
@@ -70,25 +69,12 @@ async def on_ready():
 
 # Set up the Chat bot
 instructions = current_language["instructions"]
-evagpt4 = Model()
 
-
-async def generate_response(history, search, yt_transcript, image_caption, botname, username):
-    messages = [
-        {"role": "system", "content": f"{instructions}. And your name is {botname} and users name is{username}. And only respond in the language the user is speaking, e.g., Vietnamese or English, etc."},
-        *history,
-        {
-            "role": "system",
-            "content": f"The following are the related search results, if any: {search}  if its None then user hasnt any questions\n\n" +
-                       f"{yt_transcript} if its None then user hasnt provided it\n\n" +
-                       f"Additionally, here is any attachment captioning: {image_caption} if its None then user hasnt provided it "
-        }
-    ]
-    response = await deepai.ChatCompletion.create(messages)
-    if not response:
-        response = await evagpt4.ChatCompletion(messages)
-    return response
-
+async def generate_response(prompt):
+    response = await aiassist.Completion.create(prompt=prompt)
+    if not response["text"]:
+        return ("I couldn't generate a response right now. It could be due to technical issues, limitations in my training data, or the complexity of the query.")
+    return response["text"]
 
 def split_response(response, max_length=1900):
     lines = response.splitlines()
@@ -245,6 +231,7 @@ MAX_HISTORY = 8
 
 @bot.event
 async def on_message(message):
+    
     if message.author.bot:
         return
     if message.reference and message.reference.resolved.author != bot.user:
@@ -254,16 +241,14 @@ async def on_message(message):
     if author_id not in message_history:
         message_history[author_id] = []
 
-    message_history[author_id].append(
-        {"role": "user", "content": message.content})
+    message_history[author_id].append(f"{message.author.name} : {message.content}")
     message_history[author_id] = message_history[author_id][-MAX_HISTORY:]
 
     is_replied = message.reference and message.reference.resolved.author == bot.user
     is_dm_channel = isinstance(message.channel, discord.DMChannel)
     is_active_channel = message.channel.id in active_channels
     is_allowed_dm = allow_dm and is_dm_channel
-    contains_trigger_word = any(
-        word in message.content for word in trigger_words)
+    contains_trigger_word = any(word in message.content for word in trigger_words)
     is_bot_mentioned = bot.user.mentioned_in(message)
     bot_name_in_message = bot.user.name.lower() in message.content.lower()
 
@@ -275,28 +260,31 @@ async def on_message(message):
                 if attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', 'webp')):
                     caption = await process_image_link(attachment.url)
                     has_image = True
-                    image_caption = f"""User has sent a image{current_language["instruc_image_caption"]}{caption}.]"""
+                    image_caption = f"""\n[System: Image-to-text models may take time to load, causing timeout errors. Fallback or functional models should be used instead. Captions for the image are categorized as OCR  (1st) that is good for image containing signs or symbols then comes general image detection (2nd), which will be very inaccurate for OCR. Image captions: {caption}]"""
                     print(caption)
                     break
-
+                    
+        if has_image:
+            bot_prompt =f"{instructions}\n[System: Image context provided. This is an image-to-text model with two classifications: OCR for text detection and general image detection, which may be unstable. Generate a caption with an appropriate response. For instance, if the OCR detects a math question, answer it; if it's a general image, compliment its beauty.]"
+        else:
+            bot_prompt = f"{instructions}"  
         search_results = await search(message.content)
         yt_transcript = await get_transcript_from_message(message.content)
-        history = message_history[author_id]
-        botname = bot.user.name
-        username = message.author.name
-
-        async def generate_response_in_thread(history, yt_transcript, image_caption, botname, username):
+        user_prompt = "\n".join(message_history[author_id])
+        if yt_transcript is not None:
+            prompt = f"{yt_transcript}"
+        else:
+            prompt = f"{bot_prompt}\n{user_prompt}\n{image_caption}\n{search_results}\n\n{bot.user.name}:"
+        async def generate_response_in_thread(prompt):
             temp_message = await message.channel.send("https://cdn.discordapp.com/emojis/1075796965515853955.gif?size=96&quality=lossless")
-            response = await generate_response(history, search_results, yt_transcript, image_caption, botname, username)
-            message_history[author_id].append(
-                {"role": "assistant", "content": response})
+            response = await generate_response(prompt)
+            message_history[author_id].append(f"\n{bot.user.name} : {response}")
             chunks = split_response(response)
             for chunk in chunks:
                 await message.reply(chunk)
             await temp_message.delete()
         async with message.channel.typing():
-            asyncio.create_task(generate_response_in_thread(
-                history, yt_transcript, image_caption, botname, username))
+            asyncio.create_task(generate_response_in_thread(prompt))
 
 
 @bot.hybrid_command(name="pfp", description=current_language["pfp"])
@@ -492,10 +480,40 @@ async def help(ctx):
 
     await ctx.send(embed=embed)
 
-
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You do not have permission to use this command.")
+
+@bot.hybrid_command(name="join", with_app_command=True, description="Make Layla join your VC")
+async def join(ctx):
+    if not ctx.message.author.voice:
+        await ctx.send("{} is not connected to a voice channel".format(ctx.message.author.name))
+        return
+    else:
+        channel = ctx.message.author.voice.channel
+    await channel.connect()
+    await ctx.send("Connected! :>")
+
+@bot.hybrid_command(name="leave", with_app_command=True, description="Make Layla leave the VC")
+async def leave(ctx):
+    voice_client = ctx.message.guild.voice_client
+    if voice_client.is_connected():
+        await voice_client.disconnect()
+        await ctx.send("Disconnected! :<")
+    else:
+        await ctx.send("I'm not connected to a voice channel.")
+
+@bot.hybrid_command(name="play", with_app_command=True, description="Make Layla play a song")
+async def play(ctx):
+    await ctx.send("Not yet available now. saaandrew is trying! :>")
+
+@bot.hybrid_command(name="ayyyyy", description="Make Layla send (☞ﾟヮﾟ)☞")
+async def ayyyyy(ctx):
+    await ctx.send("(☞ﾟヮﾟ)☞")
+
+@bot.hybrid_command(name="vn", description="Send a Vietnam flag and a special flag")
+async def vn(ctx):
+    await ctx.send(":flag_vn: [☭]")
 
 bot.run(TOKEN)
