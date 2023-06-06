@@ -1,4 +1,5 @@
 {
+  "language_name": "English",
   "instruc_image_caption": "Image-to-text models may take time to load, causing timeout errors. Fallback or functional models should be used instead. Captions for the image are categorized as OCR (1st), which is good for images containing signs or symbols, and general image detection (2nd), which will be very inaccurate for OCR. Image captions:",
   "pfp": "Change bot's pfp using an image URL",
   "pfp_change_msg_1": "Please provide an Image URL or attach an Image for this command",
@@ -15,7 +16,7 @@
   "toggleactive_msg_1": "has been removed from the list of active channels.",
   "toggleactive_msg_2": "has been added to the list of active channels!",
   "help": "Get all other commands!",
-  "help_footer": "Created by Mishal#1916 !",
+  "help_footer": "(☞ﾟヮﾟ)☞",
   "nekos": "Display a random image or GIF of a neko, waifu, husbando, kitsune, or other actions",
   "nekos_msg": "Invalid category provided. Valid categories are: ",
   "imagine": "Generate an image",
