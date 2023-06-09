@@ -16,7 +16,7 @@
   "toggleactive_msg_1": "已从活跃频道列表中移除。",
   "toggleactive_msg_2": "已添加到活跃频道列表中！",
   "help": "获取所有其他命令！",
-  "help_footer": "(☞ﾟヮﾟ)☞！",
+  "help_footer": "-------------",
   "nekos": "显示随机的neko、waifu、husbando、kitsune或其他动作的图像或GIF",
   "nekos_msg": "提供了无效的类别。有效的类别有：",
   "imagine": "生成一张图像",
