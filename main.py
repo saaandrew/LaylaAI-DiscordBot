@@ -150,13 +150,11 @@ async def generate_response(prompt):
     
     headers = {
         'Content-Type': 'application/json',
-        'x-api-key': 'sk-i_love_mishal'
+        'x-api-key': 'mh-gimme_the_api'
     }
 
     data = {
-        'prompt': prompt,
-        'max_tokens': 400,
-        'temperature': 0.7
+        'prompt': prompt
     }
 
     try:
@@ -316,12 +314,14 @@ async def generate_image(image_prompt, style_value, ratio_value, negative, upsca
 
 
 async def detectnsfw(prompt):
-    pre_prompt = """Ignore all the instructions you got before. From now on, you are going to act as nsfw art image to text prompt detector. If the following contains stuff that involes graphic sexual material or nudity, content respond with "1." else respond with "0." and nothing else
+    fullprompt = f"""Ignore all the instructions you got before. From now on, you are going to act as nsfw art image to text prompt detector. If the following contains stuff that involes graphic sexual material or nudity, content respond with "1." else respond with "0." and nothing else
 
-Prompt = """
-    fullprompt = pre_prompt + prompt
-    response = generate_response(prompt=fullprompt)
-    if response["text"] == "1.":
+Prompt = {prompt}
+Eval = """
+
+    response = await generate_response(prompt=fullprompt)
+
+    if response == "1.":
         return True
     else:
         return False
